@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"example/test/data"
+	"example/test/database"
 	"example/test/handlers"
 	"log"
 	"net/http"
@@ -9,26 +12,46 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/go-openapi/runtime/middleware"
 	"github.com/gorilla/mux"
 )
 
 func main() {
-	l := log.New(os.Stdout, "product-api", log.LstdFlags)
 
-	ph := handlers.NewProducts(l)
+	var err error
+	database.DBCon, err = sql.Open("mysql", "root:@tcp(localhost:3306)/test")
+	if err != nil {
+		log.Println("error : ", err)
+	}
+
+	defer database.DBCon.Close()
+
+	l := log.New(os.Stdout, "product-api", log.LstdFlags)
+	v := data.NewValidation()
+
+	ph := handlers.NewProducts(l, v)
 
 	sm := mux.NewRouter()
 
 	getRouter := sm.Methods("GET").Subrouter()
-	getRouter.HandleFunc("/", ph.GetProducts)
+	getRouter.HandleFunc("/products", ph.ListAll)
 
 	putRouter := sm.Methods("PUT").Subrouter()
-	putRouter.HandleFunc("/{id:[0-9]+}", ph.UpdateProducts)
-	putRouter.Use(ph.MiddlewareProductValidation)
+	putRouter.HandleFunc("/products/{id:[0-9]+}", ph.UpdateProducts)
+	putRouter.Use(ph.MiddlewareValidateProduct)
 
 	postRouter := sm.Methods("POST").Subrouter()
-	postRouter.HandleFunc("/", ph.AddProduct)
-	postRouter.Use(ph.MiddlewareProductValidation)
+	postRouter.HandleFunc("/products", ph.AddProduct)
+	postRouter.Use(ph.MiddlewareValidateProduct)
+
+	deleteRouter := sm.Methods("DELETE").Subrouter()
+	deleteRouter.HandleFunc("/products/{id:[0-9]+}", ph.DeleteProduct)
+	deleteRouter.Use(ph.MiddlewareValidateProduct)
+
+	opts := middleware.RedocOpts{SpecURL: "/swagger.yaml"}
+	sh := middleware.Redoc(opts, nil)
+	getRouter.Handle("/docs", sh)
+	getRouter.Handle("/swagger.yaml", http.FileServer(http.Dir("./")))
 
 	s := &http.Server{
 		Addr:         ":9090",
