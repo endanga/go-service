@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"example/test/data"
 	"fmt"
 	"log"
 )
@@ -9,7 +8,6 @@ import (
 // Products is a http.Handler
 type Products struct {
 	l *log.Logger
-	v *data.Validation
 }
 
 // func (p *Products) ListAll(rw http.ResponseWriter, r *http.Request) {
@@ -26,8 +24,8 @@ type Products struct {
 // }
 
 // NewProducts returns a new products handler with the given logger
-func NewProducts(l *log.Logger, v *data.Validation) *Products {
-	return &Products{l, v}
+func NewProducts(l *log.Logger) *Products {
+	return &Products{l}
 }
 
 // KeyProduct is product key for add new product

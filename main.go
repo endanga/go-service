@@ -3,23 +3,32 @@ package main
 import (
 	"context"
 	"database/sql"
-	"example/test/data"
-	"example/test/database"
-	"example/test/handlers"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
+	"github.com/endanga/product-service/database"
+	"github.com/endanga/product-service/handlers"
+
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
 )
 
 func main() {
 
+	host := "127.0.0.1"
+	port := "5432"
+	user := "postgres"
+	password := "admin123"
+	dbname := "Product"
+
 	var err error
-	database.DBCon, err = sql.Open("mysql", "root:@tcp(localhost:3306)/test")
+	psqlInfo := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+	database.DBCon, err = sql.Open("postgres", psqlInfo)
 	if err != nil {
 		log.Println("error : ", err)
 	}
@@ -27,26 +36,16 @@ func main() {
 	defer database.DBCon.Close()
 
 	l := log.New(os.Stdout, "product-api", log.LstdFlags)
-	v := data.NewValidation()
 
-	ph := handlers.NewProducts(l, v)
+	ph := handlers.NewProducts(l)
 
 	sm := mux.NewRouter()
 
 	getRouter := sm.Methods("GET").Subrouter()
 	getRouter.HandleFunc("/products", ph.ListAll)
 
-	putRouter := sm.Methods("PUT").Subrouter()
-	putRouter.HandleFunc("/products/{id:[0-9]+}", ph.UpdateProducts)
-	putRouter.Use(ph.MiddlewareValidateProduct)
-
-	postRouter := sm.Methods("POST").Subrouter()
-	postRouter.HandleFunc("/products", ph.AddProduct)
-	postRouter.Use(ph.MiddlewareValidateProduct)
-
-	deleteRouter := sm.Methods("DELETE").Subrouter()
-	deleteRouter.HandleFunc("/products/{id:[0-9]+}", ph.DeleteProduct)
-	deleteRouter.Use(ph.MiddlewareValidateProduct)
+	getMaxRouter := sm.Methods("GET").Subrouter()
+	getMaxRouter.HandleFunc("/products/max", ph.GetMaxRowCount)
 
 	opts := middleware.RedocOpts{SpecURL: "/swagger.yaml"}
 	sh := middleware.Redoc(opts, nil)
